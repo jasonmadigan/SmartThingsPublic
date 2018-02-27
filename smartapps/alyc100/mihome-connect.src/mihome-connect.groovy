@@ -1,5 +1,5 @@
 /**
- *	MiHome (Connect)
+ *	MiHome (Connect)/
  *
  *  Copyright 2016 Alex Lee Yuk Cheung
  *
