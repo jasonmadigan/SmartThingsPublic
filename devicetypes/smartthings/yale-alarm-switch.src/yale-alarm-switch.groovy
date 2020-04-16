@@ -102,45 +102,52 @@ def refresh() {
 			uri: baseUrl() + endpointMode(),
 			headers: ['Authorization' : "Bearer ${state.accessToken}"]
 	]
-	httpGet(getPanelMetaDataAndFullStatus) {	response ->
-		//log.debug "'$device' REFRESH - response = '${response.data.data[0].mode}, ${response.status}"
-        YaleAlarmState = response.data.data.getAt(0)
-        responsecode = response.status
-        }
-        if (responsecode != 200) {
-        	state.errorcount = state.errorcount + 1
-    		log.warn "${responsecode}' - try getting new token, error count is ${state.errorcount}"
-    		if (state.errorcount > 2){
-            	state.mode = "refersh error lots of errors"
-    			log.error "too many errors"
-                send("Refresh issue  '${responsecode}', error count '${state.errorcount}'")
-        		state.errorcount = 0
-			}
-    		else {
-				login()
-            	runIn(05, refresh)
-                state.mode = "refersh error count ${state.errorcount}"
+    try {
+        httpGet(getPanelMetaDataAndFullStatus) {	response ->
+            log.debug "'$device' REFRESH - response = '${response.data.data[0].mode}, ${response.status}"
+            YaleAlarmState = response.data.data.getAt(0)
+            responsecode = response.status
+            }
+            if (responsecode != 200) {
+                state.errorcount = state.errorcount + 1
+                log.warn "${responsecode}' - try getting new token, error count is ${state.errorcount}"
+                if (state.errorcount > 2){
+                    state.mode = "refersh error lots of errors"
+                    log.error "too many errors"
+                    send("Refresh issue  '${responsecode}', error count '${state.errorcount}'")
+                    state.errorcount = 0
+                }
+                else {
+                    login()
+                    runIn(05, refresh)
+                    state.mode = "refersh error count ${state.errorcount}"
+                }
+            }
+            else {
+                state.errorcount = 0
+                //YaleAlarmState = response.data.data.getAt(0)
+
+            if (YaleAlarmState.mode.equals("arm")) {
+                state.mode = 'Armed-Away'
+            }
+            else if (YaleAlarmState.mode.equals("home")) {
+                state.mode = 'Armed-Stay'
+            }
+            else if (YaleAlarmState.mode.equals("disarm")) {
+                state.mode = 'Disarmed'
+            }
+            else { //if (YaleAlarmState.mode.contains("system.permission_denied")) {
+                log.warn "system off line / Error, response= '$YaleAlarmState'"
+                state.mode = YaleAlarmState
+                runIn(30,refresh)
             }
         }
-        else {
-        	state.errorcount = 0
-			//YaleAlarmState = response.data.data.getAt(0)
-		
-        if (YaleAlarmState.mode.equals("arm")) {
-            state.mode = 'Armed-Away'
-        }
-        else if (YaleAlarmState.mode.equals("home")) {
-            state.mode = 'Armed-Stay'
-        }
-        else if (YaleAlarmState.mode.equals("disarm")) {
-            state.mode = 'Disarmed'
-        }
-        else { //if (YaleAlarmState.mode.contains("system.permission_denied")) {
-            log.warn "system off line / Error, response= '$YaleAlarmState'"
-            state.mode = YaleAlarmState
-            runIn(30,refresh)
-		}
- 	}
+    } catch (groovyx.net.http.HttpResponseException e) {
+        log.debug "error ${e}. Going for a token refresh."
+        login()
+        runIn(05, refresh)
+        state.mode = "refersh error count ${state.errorcount}"
+    }
 
 	log.info "'$device' REFRESH - Mode is '$state.mode', Response- '$YaleAlarmState' complete"
 	sendEvent(name: "mode", value: state.mode, isStateChange: true, displayed: true, descriptionText: "Refresh - mode is '$state.mode', response '$YaleAlarmState'")
